@@ -1,0 +1,253 @@
+#LOAD LIBRARIES
+```{r}
+library(sf)
+library(dplyr)
+library(tidyr)
+library(readr)
+
+```
+
+#REMOVE OLD FILES
+```{r}
+
+cleanup <- function(){
+  
+directory_path <- "./"
+csv_files <- list.files(path = directory_path, pattern = "\\.csv$", full.names = TRUE)
+file_removed <- file.remove(csv_files)
+
+geojson_files <- list.files(path = directory_path, pattern = "\\.geojson$", full.names = TRUE)
+file_removed <- file.remove(geojson_files)
+
+shp_files <- list.files(pattern = "^Joined_Voting_Districts\\..*$")
+file_removed <- file.remove(shp_files)
+
+}
+
+cleanup();
+```
+
+#MOVE
+```{r}
+
+moveGeoJSONFiles <- function(office_id) {
+  # Define the source directory based on the office_id
+  source_directory <- paste0(office_id, "/")
+  
+  # Define the destination directory
+  destination_directory <- "output"
+  
+  # Check if the source directory exists
+  if (!dir.exists(source_directory)) {
+    stop("Source directory does not exist.")
+  }
+  
+  # Create the destination directory if it doesn't exist
+  if (!dir.exists(destination_directory)) {
+    dir.create(destination_directory, recursive = TRUE)
+  }
+  
+  # List all GeoJSON and CSV files in the source directory
+  geojson_files <- list.files(source_directory, pattern = "\\.geojson$", full.names = TRUE)
+  csv_files <- list.files(source_directory, pattern = "\\.csv$", full.names = TRUE)
+  files_to_move <- c(geojson_files, csv_files)
+  
+  # Loop through each file and move it to the destination directory
+  for (file_path in files_to_move) {
+    # Define the new file path in the destination directory
+    file_name <- basename(file_path)
+    new_file_path <- paste0(destination_directory, file_name)
+    
+    # Check if the file exists in the destination and delete it if it does
+    if (file.exists(new_file_path)) {
+      file.remove(new_file_path)
+    }
+    
+    # Move the file to the new location
+    file.rename(file_path, new_file_path)
+  }
+  
+  cat("Files moved successfully to:", destination_directory, "\n")
+  
+
+  # List all files in the destination that end with .geojson
+  geojson_files <- list.files(destination_directory, pattern = "\\.geojson$", full.names = TRUE)
+  
+  # Loop through the list of .geojson files and rename them to .json
+  for (file_path in geojson_files) {
+    # Construct the new file path by replacing the file extension
+    new_file_path <- sub("\\.geojson$", ".json", file_path)
+    
+    # Check if a file with the new name already exists, and delete it if it does
+    if (file.exists(new_file_path)) {
+      file.remove(new_file_path)
+    }
+    
+    # Rename the file
+    file.rename(file_path, new_file_path)
+  }
+  
+  # Print message upon completion
+  cat("All .geojson files have been renamed to .json, existing files were overwritten if necessary.\n")
+}
+```
+
+#PRECINCTS FUNCTION
+```{r}
+precincts <- function(code, office, party_filter, url){
+
+# Setup and download data
+# url <- "https://electionresultsfiles.sos.mn.gov/20201103/allracesbyprecinct.txt"
+# url <- "https://static.startribune.com/news/projects/all/elex24maps/testfiles/allracesbyprecinct.txt"
+destfile <- tempfile()
+download.file(url, destfile)
+column_names <- c("state", "county_id", "precinct_id", "office_id", "office_name", 
+                  "district", "cand_order", "cand_name", "suffix", "incumbent", 
+                  "party", "precincts_reporting", "precincts_voting", "votes", 
+                  "votes_pct", "votes_office")
+data <- read_delim(destfile, delim = ";", col_names = column_names, 
+                   col_types = cols(.default = col_character()))
+write.csv(data, "PNPPrecinct_with_header.csv", row.names = FALSE, quote = FALSE)
+
+# Filter and process data for POTUS results
+data <- read_csv("PNPPrecinct_with_header.csv")
+data <- data %>%
+  mutate(vtid = paste0("27", county_id, precinct_id)) %>%
+  filter(office_id %in% as.character(code))
+# NULL party_filter keeps every party on the ballot, minus write-ins
+if (is.null(party_filter)) {
+  data <- filter(data, party != "WI")
+} else {
+  data <- filter(data, party %in% as.character(party_filter))
+}
+write_csv(data, "Filtered_PNPPrecinct.csv")
+
+# Collapse and summarize election results
+data <- read_csv("Filtered_PNPPrecinct.csv")
+# Convert necessary columns to numeric
+data <- data %>%
+  mutate(votes = as.numeric(votes), votes_pct = as.numeric(votes_pct))
+
+# Create JSON strings for each candidate
+# Check the encoding and convert if necessary
+data$cand_name <- iconv(data$cand_name, to = "UTF-8")
+
+# Escape quotes in candidate names to prevent JSON errors
+data$cand_name <- gsub('"', "'", data$cand_name, fixed = TRUE)
+
+# Continue with your existing data processing
+data <- mutate(data, votes = as.numeric(votes), votes_pct = as.numeric(votes_pct))
+
+# Create JSON strings for each candidate
+data <- data %>%
+  mutate(candidate_json = sprintf('{"name": "%s", "votes": %d, "votes_pct": %.2f, "party": "%s"}', cand_name, votes, votes_pct, party))
+
+# Aggregate all candidate JSON strings per vtid into one array string
+results <- data %>%
+  group_by(vtid) %>%
+  summarise(
+    total_votes = sum(votes),
+    winner = ifelse(n_distinct(cand_name[votes == max(votes)]) > 1, "even", cand_name[which.max(votes)]),
+    winner_margin = {
+      margin = round(abs(diff(sort(votes, decreasing = TRUE)[1:2])) / sum(votes) * 100, 2)
+      ifelse(party[which.max(votes)] == "R", margin, margin)
+    },
+    votes_obj = paste0('[', toString(candidate_json), ']'),  # Concatenate all JSON strings within brackets
+    .groups = 'drop'
+  )
+
+write_csv(results, "Summarized_VTDID_Results.csv")
+
+# Read and join election results to shapefile with vote density field
+election_results <- read_csv("Summarized_VTDID_Results.csv")
+election_results$vtid <- as.character(election_results$vtid)  # Ensure vtid is character
+
+# Load the shapefile and prepare it for joining
+voting_districts <- st_read("./shp/bdry_votingdistricts.shp")
+voting_districts$vtid <- as.character(voting_districts$vtid)  # Convert vtid to character if it is not already
+
+# Join the election results to the shapefile by VTDID
+joined_data <- left_join(voting_districts, election_results, by = c("vtid" = "vtid"))
+
+# Add the area_sqmi field
+joined_data <- mutate(joined_data, area_sqmi = shape_Area * 0.00000038610)
+
+# Calculate votes per square mile
+joined_data <- mutate(joined_data, votes_sqmi = total_votes / area_sqmi)
+
+# Define the base directory based on the 'office' variable
+office_directory <- paste0(office, "/")
+
+# Save the updated shapefile
+# st_write(joined_data, paste0(office_directory, office, "-results-geo.shp"), delete_dsn = TRUE)
+
+# Define the full path for the GeoJSON file
+geojson_path <- paste0(office_directory, office, "-results-geo.geojson")
+
+# Reproject the data to WGS 84 (EPSG:4326)
+joined_data_wgs84 <- st_transform(joined_data, crs = 4326)
+
+# Define the full path for the CSV file
+csv_path <- paste0(office_directory, office, "-results-geo.csv")
+
+# Save the data as a CSV
+st_write(joined_data_wgs84, csv_path, layer_options = "GEOMETRY=AS_XY", delete_dsn = TRUE)
+
+# Spit this data in various formats
+st_write(joined_data_wgs84, geojson_path, driver = "GeoJSON", delete_dsn = TRUE)
+
+cleanup()
+moveGeoJSONFiles(office)
+
+}
+
+```
+
+#RUN PRECINCTS
+```{r}
+
+url <- "https://electionresultsfiles.sos.mn.gov/20261103/allracesbyprecinct.txt"
+
+office_ids <- c("0331") 
+precincts(office_ids,"gov",NULL, url)
+
+office_ids <- c("0102") 
+precincts(office_ids,"sen",NULL, url)
+
+for (n in 1:8) {
+  office_ids <- c(sprintf("%04d", 103 + n))
+  precincts(office_ids,paste0("cd", n),NULL, url)
+}
+
+office_ids <- c("0332") 
+precincts(office_ids,"sos",NULL, url)
+
+office_ids <- c("0335") 
+precincts(office_ids,"ag",NULL, url)
+
+office_ids <- c("0333") 
+precincts(office_ids,"sa",NULL, url)
+
+
+```
+
+
+#COPY FILES TO STORE
+```{r}
+
+# Define the source and destination directories
+source_directory <- "output"
+destination_directory <- "config"
+
+# List all files in the source directory
+files <- list.files(path = source_directory, full.names = TRUE)
+
+# Copy each file from the source to the destination directory
+file.copy(files, destination_directory)
+
+```
+
+#RUN EVERYTHING
+```{r}
+
+```
