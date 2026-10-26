@@ -35,7 +35,7 @@ moveGeoJSONFiles <- function(office_id) {
   source_directory <- paste0(office_id, "/")
   
   # Define the destination directory
-  destination_directory <- "output"
+  destination_directory <- "output/"
   
   # Check if the source directory exists
   if (!dir.exists(source_directory)) {
@@ -177,6 +177,7 @@ joined_data <- mutate(joined_data, votes_sqmi = total_votes / area_sqmi)
 
 # Define the base directory based on the 'office' variable
 office_directory <- paste0(office, "/")
+dir.create(office_directory, showWarnings = FALSE)
 
 # Save the updated shapefile
 # st_write(joined_data, paste0(office_directory, office, "-results-geo.shp"), delete_dsn = TRUE)
@@ -237,13 +238,24 @@ precincts(office_ids,"sa",NULL, url)
 
 # Define the source and destination directories
 source_directory <- "output"
-destination_directory <- "config"
+destination_directory <- "../store"
 
 # List all files in the source directory
 files <- list.files(path = source_directory, full.names = TRUE)
 
 # Copy each file from the source to the destination directory
-file.copy(files, destination_directory)
+file.copy(files, destination_directory, overwrite = TRUE)
+
+```
+
+#SIMPLIFY STORE GEOJSON
+```{r}
+
+# Thin precinct outlines to ~14% of their points, about what the primary maps used.
+# keep-shapes stops tiny precincts from disappearing. Needs mapshaper (npm i -g mapshaper).
+for (file_path in list.files("../store", pattern = "-results-geo\\.json$", full.names = TRUE)) {
+  system2("mapshaper", c(file_path, "-simplify", "14%", "keep-shapes", "-o", "force", file_path, "format=geojson"))
+}
 
 ```
 
