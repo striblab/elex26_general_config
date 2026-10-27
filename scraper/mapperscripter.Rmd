@@ -148,6 +148,8 @@ results <- data %>%
   summarise(
     total_votes = sum(votes),
     winner = ifelse(n_distinct(cand_name[votes == max(votes)]) > 1, "even", cand_name[which.max(votes)]),
+    # Leader's party (NA on a tie), so the map can tell third-party leads apart
+    winner_party = ifelse(n_distinct(cand_name[votes == max(votes)]) > 1, NA, party[which.max(votes)]),
     winner_margin = {
       margin = round(abs(diff(sort(votes, decreasing = TRUE)[1:2])) / sum(votes) * 100, 2)
       ifelse(party[which.max(votes)] == "R", margin, margin)
