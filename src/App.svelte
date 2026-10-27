@@ -20,6 +20,16 @@
   // Statewide races (district "0") have no district borders to draw
   $: statewide = selectedRace ? String(selectedRace.district) === '0' : false;
 
+  // Per-race defaults, applied when a contest is picked; they can still be
+  // changed after. Congressional races open isolated on their district,
+  // without the state/metro zoom shortcuts.
+  function applyRaceDefaults(index) {
+    const race = elections.find((e) => String(e.index) === String(index));
+    const congressional = race?.overlay === 'congress2022.json';
+    isolate = congressional ? '2' : '0';
+    interactive = congressional ? '0' : '1';
+  }
+
   // Reactively rebuild the draft URL any time a param changes
   $: draftUrl = (() => {
     const params = new URLSearchParams({
@@ -109,7 +119,7 @@
     <div class="controls-pane">
       <div class="field">
         <label for="eOffice">Contest</label>
-        <select bind:value={district} id="eOffice">
+        <select bind:value={district} id="eOffice" on:change={(e) => applyRaceDefaults(e.currentTarget.value)}>
           <option value="">— Select —</option>
           {#each elections as election}
             <option value={election.index}>{election.name}</option>
