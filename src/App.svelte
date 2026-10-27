@@ -10,7 +10,6 @@
   let chatter = '';
   let showtext = '0';
   let clicky = '1';
-  let search = '1';
   let elections = electionsData.races;
 
   const baseUrl = 'https://static.startribune.com/news/projects/all/elex26_general/index.html';
@@ -30,8 +29,7 @@
       chatter,
       height,
       text: showtext,
-      clicky,
-      search
+      clicky
     }).toString();
     return `${baseUrl}?${params}`;
   })();
@@ -152,14 +150,6 @@
         <div class="options">
           <label><input type="radio" value="1" bind:group={clicky} /> Enable</label>
           <label><input type="radio" value="0" bind:group={clicky} /> Disable</label>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Location search box</label>
-        <div class="options">
-          <label><input type="radio" value="1" bind:group={search} /> Enable</label>
-          <label><input type="radio" value="0" bind:group={search} /> Disable</label>
         </div>
       </div>
 
