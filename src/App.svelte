@@ -22,7 +22,8 @@
 
   // Per-race defaults, applied when a contest is picked; they can still be
   // changed after. Congressional and county races open isolated on their
-  // district or county, without the state/metro zoom shortcuts.
+  // district or county, without the state/metro zoom shortcuts;
+  // congressional races also start without county borders.
   function applyRaceDefaults(index) {
     const race = elections.find((e) => String(e.index) === String(index));
     const congressional = race?.overlay === 'congress2022.json';
@@ -30,6 +31,7 @@
     const isolated = congressional || county;
     isolate = isolated ? '2' : '0';
     interactive = isolated ? '0' : '1';
+    countyBorders = congressional ? '0' : '1';
   }
 
   // Reactively rebuild the draft URL any time a param changes
