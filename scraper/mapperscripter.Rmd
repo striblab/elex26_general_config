@@ -94,7 +94,9 @@ moveGeoJSONFiles <- function(office_id) {
 
 #PRECINCTS FUNCTION
 ```{r}
-precincts <- function(code, office, party_filter, url){
+# county: a county_id ("27" = Hennepin) for county races, whose office_id
+# (e.g. 0405 County Attorney) is shared by every county's race; NULL keeps all
+precincts <- function(code, office, party_filter, url, county = NULL){
 
 # Setup and download data
 # url <- "https://electionresultsfiles.sos.mn.gov/20201103/allracesbyprecinct.txt"
@@ -114,6 +116,9 @@ data <- read_csv("PNPPrecinct_with_header.csv")
 data <- data %>%
   mutate(vtid = paste0("27", county_id, precinct_id)) %>%
   filter(office_id %in% as.character(code))
+if (!is.null(county)) {
+  data <- filter(data, county_id == county)
+}
 # NULL party_filter keeps every party on the ballot, minus write-ins
 if (is.null(party_filter)) {
   data <- filter(data, party != "WI")
@@ -232,6 +237,9 @@ precincts(office_ids,"ag",NULL, url)
 
 office_ids <- c("0333") 
 precincts(office_ids,"sa",NULL, url)
+
+office_ids <- c("0405") 
+precincts(office_ids,"hennepin",NULL, url, county = "27")
 
 
 ```
