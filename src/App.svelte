@@ -3,6 +3,7 @@
 
   let district = '';
   let boundaries = '1';
+  let countyBorders = '1';
   let isolate = '0';
   let interactive = '1';
   let height = '600';
@@ -16,12 +17,15 @@
 
   $: selectedRace = elections.find((e) => String(e.index) === String(district));
   $: shading = selectedRace?.shade ?? '0';
+  // Statewide races (district "0") have no district borders to draw
+  $: statewide = selectedRace ? String(selectedRace.district) === '0' : false;
 
   // Reactively rebuild the draft URL any time a param changes
   $: draftUrl = (() => {
     const params = new URLSearchParams({
       office: district,
-      overlay: boundaries,
+      overlay: statewide ? '0' : boundaries,
+      counties: countyBorders,
       filter: isolate,
       interactive,
       shading,
@@ -114,11 +118,22 @@
       </div>
 
       <div class="field">
-        <label>District borders</label>
+        <label>County borders</label>
         <div class="options">
-          <label><input type="radio" value="1" bind:group={boundaries} /> Enable</label>
-          <label><input type="radio" value="0" bind:group={boundaries} /> Disable</label>
+          <label><input type="radio" value="1" bind:group={countyBorders} /> Enable</label>
+          <label><input type="radio" value="0" bind:group={countyBorders} /> Disable</label>
         </div>
+      </div>
+
+      <div class="field">
+        <label>District borders</label>
+        <div class="options" class:disabled={statewide}>
+          <label><input type="radio" value="1" bind:group={boundaries} disabled={statewide} /> Enable</label>
+          <label><input type="radio" value="0" bind:group={boundaries} disabled={statewide} /> Disable</label>
+        </div>
+        {#if statewide}
+          <p class="field-hint">Statewide races have no districts.</p>
+        {/if}
       </div>
 
       <div class="field">
@@ -409,5 +424,15 @@
 
   .options input[type="radio"] {
     margin: 0;
+  }
+
+  .options.disabled label {
+    color: #999;
+  }
+
+  .field-hint {
+    margin: 4px 0 0;
+    font-size: 0.75rem;
+    color: #888;
   }
 </style>
