@@ -153,6 +153,8 @@ results <- data %>%
       ifelse(party[which.max(votes)] == "R", margin, margin)
     },
     votes_obj = paste0('[', toString(candidate_json), ']'),  # Concatenate all JSON strings within brackets
+    # Signed margin, as in elex-2026-precinct-map: R minus DFL as a share of all votes (positive = R lead)
+    rd_margin = ifelse(sum(votes) > 0, round((sum(votes[party == "R"]) - sum(votes[party == "DFL"])) / sum(votes) * 100, 2), NA),
     .groups = 'drop'
   )
 
