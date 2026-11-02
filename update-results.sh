@@ -25,6 +25,8 @@ set -euo pipefail
 CONFIG_DIR="$(cd "$(dirname "$0")" && pwd)"
 MAP_DIR="${MAP_DIR:-$HOME/elex26_general}"
 S3_BUCKET="static.startribune.com"
+# Must match PROFILE in the map app's strib-deploy.sh
+AWS_PROFILE_NAME="jake-sso"
 S3_PREFIX="news/projects/all/$(basename "$MAP_DIR")"
 # Simplified race files run ~5-8 MB; unsimplified ones ~33 MB.
 MAX_GEOJSON_MB=15
@@ -54,7 +56,7 @@ done
 [ -d "$MAP_DIR/scripts" ] || fail "No map app at $MAP_DIR (set MAP_DIR)"
 if [ "$DEPLOY" = 1 ]; then
   command -v aws >/dev/null || fail "The AWS CLI isn't installed"
-  aws sts get-caller-identity --profile default >/dev/null || fail "No working AWS credentials in the default profile"
+  aws sts get-caller-identity --profile "$AWS_PROFILE_NAME" >/dev/null || fail "No working AWS credentials in the $AWS_PROFILE_NAME profile (run: aws sso login --profile $AWS_PROFILE_NAME)"
 fi
 if [ "$PUSH" = 1 ]; then
   git -C "$CONFIG_DIR" pull --ff-only --quiet || fail "Couldn't fast-forward $CONFIG_DIR from GitHub"
@@ -137,7 +139,7 @@ if [ "$DEPLOY" = 1 ]; then
 
   step "Confirming S3 has the new data"
   for key in index.html data/directory.json; do
-    modified=$(aws s3api head-object --profile default --bucket "$S3_BUCKET" \
+    modified=$(aws s3api head-object --profile "$AWS_PROFILE_NAME" --bucket "$S3_BUCKET" \
       --key "$S3_PREFIX/$key" --query LastModified --output text) ||
       fail "Couldn't read $key back from S3"
     node -e '
