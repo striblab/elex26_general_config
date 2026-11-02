@@ -6,7 +6,7 @@
   let countyBorders = '1';
   let isolate = '0';
   let interactive = '1';
-  let height = '600';
+  let height = '650';
   let hed = '';
   let chatter = '';
   let showtext = '0';
