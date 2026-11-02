@@ -96,13 +96,12 @@ moveGeoJSONFiles <- function(office_id) {
 ```{r}
 # county: a county_id ("27" = Hennepin) for county races, whose office_id
 # (e.g. 0405 County Attorney) is shared by every county's race; NULL keeps all
-precincts <- function(code, office, party_filter, url, county = NULL){
+# clip: keep only precincts on this race's ballot (legislative races), so
+# district files stay small instead of carrying every precinct in the state
+# sos_file: the SoS results file, downloaded once in RUN PRECINCTS
+precincts <- function(code, office, party_filter, sos_file, county = NULL, clip = FALSE){
 
-# Setup and download data
-# url <- "https://electionresultsfiles.sos.mn.gov/20201103/allracesbyprecinct.txt"
-# url <- "https://static.startribune.com/news/projects/all/elex24maps/testfiles/allracesbyprecinct.txt"
-destfile <- tempfile()
-download.file(url, destfile)
+destfile <- sos_file
 column_names <- c("state", "county_id", "precinct_id", "office_id", "office_name", 
                   "district", "cand_order", "cand_name", "suffix", "incumbent", 
                   "party", "precincts_reporting", "precincts_voting", "votes", 
@@ -177,6 +176,9 @@ voting_districts$vtid <- as.character(voting_districts$vtid)  # Convert vtid to 
 
 # Join the election results to the shapefile by VTDID
 joined_data <- left_join(voting_districts, election_results, by = c("vtid" = "vtid"))
+if (clip) {
+  joined_data <- filter(joined_data, vtid %in% election_results$vtid)
+}
 
 # Add the area_sqmi field
 joined_data <- mutate(joined_data, area_sqmi = shape_Area * 0.00000038610)
@@ -216,7 +218,11 @@ moveGeoJSONFiles(office)
 #RUN PRECINCTS
 ```{r}
 
-url <- "https://electionresultsfiles.sos.mn.gov/20261103/allracesbyprecinct.txt"
+sos_url <- "https://electionresultsfiles.sos.mn.gov/20261103/allracesbyprecinct.txt"
+# url <- "https://static.startribune.com/news/projects/all/elex24maps/testfiles/allracesbyprecinct.txt"
+# One download for every race, so all maps share the same snapshot
+url <- tempfile()
+download.file(sos_url, url)
 
 office_ids <- c("0331") 
 precincts(office_ids,"gov",NULL, url)
@@ -240,6 +246,22 @@ precincts(office_ids,"sa",NULL, url)
 
 office_ids <- c("0405") 
 precincts(office_ids,"hennepin",NULL, url, county = "27")
+
+# Legislative races to watch, by SoS office_id
+senate_races <- c("3" = "0123", "4" = "0124", "14" = "0134", "32" = "0152",
+                  "33" = "0153", "35" = "0155", "37" = "0157", "41" = "0161",
+                  "48" = "0168")
+for (d in names(senate_races)) {
+  precincts(senate_races[[d]], paste0("sd", d), NULL, url, clip = TRUE)
+}
+
+house_races <- c("3B" = "0193", "11A" = "0208", "14B" = "0215", "18A" = "0222",
+                 "26A" = "0238", "32B" = "0251", "35A" = "0256", "35B" = "0257",
+                 "36A" = "0258", "41A" = "0268", "41B" = "0269", "54A" = "0294",
+                 "57B" = "0301")
+for (d in names(house_races)) {
+  precincts(house_races[[d]], paste0("hd", tolower(d)), NULL, url, clip = TRUE)
+}
 
 
 ```

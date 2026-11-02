@@ -21,17 +21,18 @@
   $: statewide = selectedRace ? String(selectedRace.district) === '0' : false;
 
   // Per-race defaults, applied when a contest is picked; they can still be
-  // changed after. Congressional and county races open isolated on their
-  // district or county, without the state/metro zoom shortcuts;
-  // congressional races also start without county borders.
+  // changed after. Congressional, legislative and county races open isolated
+  // on their district or county, without the state/metro zoom shortcuts;
+  // congressional and legislative races also start without county borders.
+  const DISTRICT_OVERLAYS = ['congress2022.json', 'senate2022.json', 'house2022.json'];
   function applyRaceDefaults(index) {
     const race = elections.find((e) => String(e.index) === String(index));
-    const congressional = race?.overlay === 'congress2022.json';
+    const districted = DISTRICT_OVERLAYS.includes(race?.overlay);
     const county = race?.overlay === 'counties.json' && String(race.district) !== '0';
-    const isolated = congressional || county;
+    const isolated = districted || county;
     isolate = isolated ? '2' : '0';
     interactive = isolated ? '0' : '1';
-    countyBorders = congressional ? '0' : '1';
+    countyBorders = districted ? '0' : '1';
   }
 
   // Reactively rebuild the draft URL any time a param changes
