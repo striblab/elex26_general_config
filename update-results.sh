@@ -4,7 +4,7 @@
 #   1. Runs the R pipeline (scraper/mapperscripter.Rmd) against the SoS feed
 #   2. Checks every race's GeoJSON: present, fresh, simplified, valid
 #   3. Commits and pushes store/ in this repo (GitHub Pages data links)
-#   4. Copies the data into the map app and refreshes its directory.json
+#   4. Copies the data into the map app and refreshes its races.json
 #   5. Runs the map app's precision and directory-stats scripts, then builds
 #   6. Deploys the map app to production and confirms S3 took the upload
 #
@@ -107,7 +107,7 @@ fi
 
 step "Copying the data into the map app"
 cp "$CONFIG_DIR"/store/*-results-geo.json "$CONFIG_DIR"/store/*-results-geo.csv "$MAP_DIR/public/data/"
-# Rebuild the map's directory.json from the configurator's race list, so new
+# Rebuild the map's races.json from the configurator's race list, so new
 # or changed races carry over; build-directory-stats.mjs then adds the stats.
 node -e '
   const fs = require("fs");
@@ -117,7 +117,7 @@ node -e '
     precincts: r.precincts.split("/").pop()
   }));
   fs.writeFileSync(process.argv[2], JSON.stringify({ races }));
-' "$CONFIG_DIR/src/directory.json" "$MAP_DIR/public/data/directory.json"
+' "$CONFIG_DIR/src/directory.json" "$MAP_DIR/public/data/races.json"
 
 step "Preparing and building the map app"
 cd "$MAP_DIR"
@@ -138,7 +138,7 @@ if [ "$DEPLOY" = 1 ]; then
   fi
 
   step "Confirming S3 has the new data"
-  for key in index.html data/directory.json; do
+  for key in index.html data/races.json; do
     modified=$(aws s3api head-object --profile "$AWS_PROFILE_NAME" --bucket "$S3_BUCKET" \
       --key "$S3_PREFIX/$key" --query LastModified --output text) ||
       fail "Couldn't read $key back from S3"
